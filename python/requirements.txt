@@ -1,3 +1,3 @@
 connexion[swagger-ui]
-connexion~=2.4.0
-nose
+connexion~=2.14.2
+nose2

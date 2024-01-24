@@ -15,6 +15,7 @@ from loan_application.models.decisions import \
     IdentityApproved
 from loan_application.models.enums import Currency
 from loan_application.models.enums.decisions import PendingState
+from loan_application.models.merchants.merchant import MerchantConfiguration
 from loan_application.models.requests import \
     InitializeLoanApplication, \
     SubmitConfirmation, \
@@ -25,6 +26,7 @@ from loan_application.repo.loan_application import api as loan_application_repo
 from loan_application.repo.loan_application.models import \
     LoanApplication, LoanApplicationUserInput
 from loan_application.repo.merchant.api import get_merchant_configuration
+from loan_application.repo.merchant.api import update_merchant_prequal_configuration
 from loan_application.repo.terms import api as terms_repo
 from loan_application.terms.api import compute_schedule
 
@@ -311,6 +313,63 @@ def submit_confirmation(
         "message": "Use this token to complete your purchase.",
         "merchant_payment_token": loan_application_id
     }
+
+'''
+When request is sent to API endpoint, submit_merchant_config checks that merchant
+is in our memory storage and if so updates: prequal, minimum_loan_amount and
+maximum_loan_amount with supplied info. This assumes that merchants not only can
+updated whether prequal is enabled but they can update their min and max loans if
+desired upon enabling prequal.
+'''
+def submit_merchant_config(
+        merchant_id: str,
+        body: dict
+) -> Union[Response, dict]:
+    #first we check if the merchant is in our database
+    merchant_to_configure = get_merchant_configuration(merchant_id)
+    if merchant_to_configure:
+        #use this info to instantiate a new class for this merchant with the updated values from API request
+        updated_configuration = MerchantConfiguration(
+            merchant_id=merchant_id,
+            name=merchant_to_configure.name,
+            **body
+        )
+        #store updated values for loan
+        minimum_loan_amount = updated_configuration.minimum_loan_amount
+        maximum_loan_amount = updated_configuration.maximum_loan_amount
+        prequal_enabled = updated_configuration.prequal_enabled
+        #check min and max loan amounts are valid
+        if maximum_loan_amount < minimum_loan_amount:
+            #if loan amounts are invalid, return failed response 400
+            content_type = mimetype = 'application/json'
+            return Response(
+                status=400, content_type=content_type, mimetype=mimetype,
+                response=json.dumps({
+                    "field": "minimum_loan_amount",
+                    "message": "Maximum loan amount must be larger than minimum loan amount."
+                })
+            )
+        #use updated values to update entry for merchant in database and retrieve configuration Id
+        merchant_configuration_id = update_merchant_prequal_configuration(
+            merchant_id,
+            minimum_loan_amount,
+            maximum_loan_amount,
+            prequal_enabled
+            )
+        #return sucessful response
+        if merchant_configuration_id:
+            return {
+                "merchant_configuration_id": merchant_configuration_id
+            }
+    #if merchant was not in our database, return failed response 400
+    content_type = mimetype = 'application/json'
+    return Response(
+        status=400, content_type=content_type, mimetype=mimetype,
+        response=json.dumps({
+            "field": "merchant_id",
+            "message": "Could not find that merchant."
+        })
+    )
 
 
 def submit_exit(
