@@ -1,0 +1,236 @@
+---
+openapi: 3.0.0
+info:
+  description: Simplified Loan Application
+  title: Loan Application Lite
+  version: 1.0.0
+tags:
+  description: "\n        0. Applicant submits a request for a loan at a merchant
+    for some amount.\n        1. Applicant submits basic identifying information.\n
+    \       2. Server does risk checks to verify customer's identity and may require
+    the customer to submit their full social security number.\n        3. Server does
+    risk checks to verify customer's credit worthiness and may require the customer
+    to submit their income.\n        4. Server may decline the customer at any point
+    in the flow.\n        5. If the server approve, the server returns terms for the
+    customer to choose from, as well as disclosures for them to agree to.\n        "
+  name: Loan Application
+components:
+  schemas:
+    ApprovedTerms:
+      type: object
+      properties:
+        schedule_id:
+          type: string
+          format: uuid
+        payment_frequency:
+          type: string
+          enum:
+          - monthly
+        number_of_payments:
+          type: string
+          pattern: "\\d+"
+        currency:
+          type: string
+          enum:
+          - USD
+          - CAD
+          - EUR
+          - GBP
+        payment_amount:
+          type: string
+          pattern: "^\\$\\d+\\.\\d{2} per month$"
+        first_payment_amount:
+          type: string
+          pattern: "^\\$\\d+\\.\\d{2}$"
+        last_payment_amount:
+          type: string
+          pattern: "^\\$\\d+\\.\\d{2}$"
+        payments_total:
+          type: string
+          pattern: "^\\$\\d+\\.\\d{2}$"
+        principal_total:
+          type: string
+          pattern: "^\\$\\d+\\.\\d{2}$"
+        interest_total:
+          type: string
+          pattern: "^\\$\\d+\\.\\d{2}$"
+        apr:
+          type: string
+          pattern: "^\\d+\\.\\d{1,5}\\% APR$"
+        loan_start_date:
+          type: string
+        first_payment_date:
+          type: string
+      required:
+      - schedule_id
+      - payment_frequency
+      - number_of_payments
+      - payment_amount
+      - first_payment_amount
+      - last_payment_amount
+      - payments_total
+      - principal_total
+      - interest_total
+      - apr
+      - loan_start_date
+      - first_payment_date
+      example:
+        schedule_id: 1e0a8f1a-a3a3-4842-b92f-c81592b73154
+        payment_frequency: monthly
+        number_of_payments: '3'
+        payment_amount: "$338.83 per month"
+        first_payment_amount: "$338.83"
+        last_payment_amount: "$338.83"
+        payments_total: "$1016.48"
+        principal_total: "$1000.00"
+        interest_total: "$16.48"
+        apr: 9.99%
+        loan_start_date: November 29 2019
+        first_payment_date: December 28 2019
+    CreateLoanApplicationRequest:
+      type: object
+      properties:
+        merchant_id:
+          type: string
+          format: uuid
+        requested_amount_cents:
+          type: integer
+          description: Loan amount requested in cents, e.g. 100000 for $1000.00
+        currency:
+          type: string
+          enum:
+          - USD
+          - CAD
+          - EUR
+          - GBP
+      required:
+      - merchant_id, requested_amount_cents, currency
+      example:
+        merchant_id: 4f572866-0e85-11ea-94a8-acde48001122
+        requested_amount_cents: 100000
+        currency: USD
+    Declination:
+      type: object
+      properties:
+        header:
+          type: string
+          maxLength: 36
+        message:
+          type: string
+      required:
+      - header
+      - message
+      example:
+        header: We're sorry
+        message: We couldn't approve your application because we couldn't verify your
+          identity.
+    LoanApplicationResponse:
+      type: object
+      properties:
+        loan_application_id:
+          type: string
+          format: uuid
+        next_step:
+          type: string
+          enum:
+          - identity
+          - ssn
+          - income
+          - confirmation
+          - declination
+          - exit
+        submit_url:
+          type: string
+        data:
+          type: object
+          properties:
+            approved_terms:
+              type: array
+              items:
+                "$ref": "#/components/schemas/ApprovedTerms"
+            declination:
+              "$ref": "#/components/schemas/Declination"
+      required:
+      - loan_application_id
+      - next_step
+      - submit_url
+      example:
+        loan_application_id: da578d12-34eb-45b3-af45-e8da687910bf
+        next_step: ssn
+        submit_url: "/api/v1/loanapplication/da578d12-34eb-45b3-af45-e8da687910bf/ssn"
+    SubmitExitResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      example:
+        message: Goodbye
+    BadInputResponse:
+      type: object
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+      required:
+      - message
+      example:
+        field: full_name
+        message: Please input a valid name.
+    CreateMerchantConfigRequest:
+      type: object
+      properties:
+        minimum_amount:
+          type: integer
+          description: Minimum amount (in cents) that a consumer can get a loan for.
+        maximum_amount:
+          type: integer
+          description: Maximum amount (in cents) that a consumer can get a loan for.
+        prequal_enabled:
+          type: boolean
+          description: Flag indicating if Prequal feature is enabled for this merchant.
+      required:
+      - minimum_amount
+      - maximum_amount
+      - prequal_enabled
+      example:
+        minimum_amount: 30000
+        maximum_amount: 200000
+        prequal_enabled: true
+    CreateMerchantConfigResponse:
+      type: object
+      properties:
+        merchant_configuration_id:
+          type: string
+          format: uuid
+      required:
+      - merchant_configuration_id
+      example:
+        merchant_configuration_id: 3345919e-0e85-11ea-94a8-acde48001122
+paths:
+  "/api/v1/loanapplication/{id}/exit":
+    post:
+      summary: exit
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+  "/api/v1/loanapplication":
+    post:
+      summary: create loan application
+      parameters: []
+      responses:
+        '400':
+          description: Bad Request
+        '200':
+          description: OK
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/CreateLoanApplicationRequest"
