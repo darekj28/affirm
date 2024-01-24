@@ -1,4 +1,4 @@
-# Python Specific Instructions 
+# Python Specific Instructions
 
 ## Setting up your Development Environment
 **Install your virtual environment**. Please note this requires Python3.7+
@@ -82,7 +82,7 @@ For the Set Merchant Configuration endpoint schema, we’ve provided the followi
        application/json:
          schema:
            $ref: '#/components/schemas/CreateMerchantConfigRequest'
-   responses: 
+   responses:
      200:
        content:
          application/json:
